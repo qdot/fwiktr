@@ -14,7 +14,7 @@ from nltk import tag, corpora, tokenize
 
 xml_block = '''<?xml version='1.0' standalone='yes'?>
 <fwiktr>
-  <post flickr_farm='%(flickr_farm)s' flickr_server='%(flickr_server)s' flickr_photoid='%(flickr_photoid)s' flickr_ownerid='%(flickr_ownerid)s' flickr_title='%(flickr_title)s' flickr_secret='%(flickr_secret)s' post_source='%(post_source)s' chain_mechanism='%(chain_mechanism)s' selection_mechanism='%(selection_mechanism)s' flickr_total='%(flickr_total)s' post_date='%(post date)s'>
+  <post flickr_farm='%(flickr_farm)s' flickr_server='%(flickr_server)s' flickr_photoid='%(flickr_photoid)s' flickr_ownerid='%(flickr_ownerid)s' flickr_title='%(flickr_title)s' flickr_secret='%(flickr_secret)s' post_source='%(post_source)s' chain_mechanism='%(chain_mechanism)s' selection_mechanism='%(selection_mechanism)s' flickr_total='%(flickr_total)s' post_date='%(post_date)s'>
     <text>%(post_text)s</text>
     <tags>%(post_tags)s</tags>
     <pos_output>%(post_pos_output)s</pos_output>
@@ -25,7 +25,7 @@ xml_block = '''<?xml version='1.0' standalone='yes'?>
 
 twitter_info_block = '''
 <twitter>
-    <twitter_post_id>%(twitter_post_id)s<twitter_post_id>
+    <twitter_post_id>%(twitter_post_id)s</twitter_post_id>
     <twitter_author_id>%(twitter_author_id)s</twitter_author_id>
     <twitter_author_name>%(twitter_author_name)s</twitter_author_name>
     <twitter_location>%(twitter_location)s</twitter_location>
@@ -80,8 +80,8 @@ class Fwiktr:
                 twitter_block = twitter_info_block % self.twitter_info
                 self._AddFwiktrData(dict([('twitter_info_block',twitter_block)]))                                           
                 self._AddFwiktrData(dict([('post_pos_output', cgi.escape("\n".join(["\t".join(i) for i in tokens])))]))                
-                self._RetreiveFlickrURLs(tokens)
-                self._PostDataToWeb()
+                if self._RetreiveFlickrURLs(tokens):
+                    self._PostDataToWeb()
                 time.sleep(30)
             except UnicodeEncodeError:
                 print "Twitter Message not ascii, skipping"        
@@ -92,7 +92,7 @@ class Fwiktr:
         self._curl.setopt(pycurl.URL, 'http://www.30helensagree.com/fwiktr/fwiktr_post.php')
         self._curl.setopt(pycurl.POST, 1)
         self._curl.setopt(pycurl.POSTFIELDS, urllib.urlencode([("fwiktr_post", xml_string)]))
-#        self._curl.perform()
+        self._curl.perform()
 
     def _IsTagNoun(self, tag_tuple):
         #Start by culling everything that's not a noun
@@ -106,16 +106,18 @@ class Fwiktr:
     def _RetreiveFlickrURLs(self, tagList):
         tag_string = ','.join([i[0] for i in filter(self._IsTagNoun, tagList)])
 
+        if(tag_string == ""): return False
+
         rsp = self.fapi.photos_search(api_key=self._GetOption('flickr_api_key'),tags=tag_string)
         self.fapi.testFailure(rsp)
-        if(rsp.photos[0]['total'] == 0): return 
+        if(rsp.photos[0]['total'] == 0): return False
 
         rand_index = random.randint(0, min(int(rsp.photos[0]['perpage']), int(rsp.photos[0]['total'])))
         self._AddFwiktrData(dict([('flickr_total', rsp.photos[0]['total']), ('post_tags', cgi.escape(tag_string))]))
         
 	a = rsp.photos[0].photo[rand_index]
         self._AddFwiktrData(dict([('flickr_server', a['server']), ('flickr_farm', a['farm']), ('flickr_photoid', a['id']), ('flickr_secret', a['secret']), ('flickr_ownerid', a['owner']), ('flickr_title', cgi.escape(a['title']))]))
-
+        return True
         
 def main():
     f = Fwiktr()

@@ -5,13 +5,11 @@ $info = $doc->post[0];
 
 $post_sql = "INSERT INTO fwiktr_posts (
 source_index,
-post_url,
 post_text,
 post_date)
 VALUES
 (
 ".(string)$info['post_source'].",
-'".(string)$info->url."',
 '".(string)$info->text."',
 '".(string)$info['post_date']."'
 );";
