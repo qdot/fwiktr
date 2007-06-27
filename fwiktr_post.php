@@ -1,6 +1,6 @@
 <?php
 
-$doc = new SimpleXMLElement($_POST['fwiktr_post']);
+$doc = new SimpleXMLElement(urldecode($_POST['fwiktr_post']));
 $info = $doc->post[0];
 
 $post_sql = "INSERT INTO fwiktr_posts (
@@ -70,11 +70,11 @@ echo 'Connected successfully';
 mysql_select_db('30helensagree') or die('Could not select database');
 
 // Performing SQL query
-$result = mysql_query("BEGIN;") or die('Query failed: ' . mysql_error());
-$result = mysql_query($post_sql) or die('Query failed: ' . mysql_error());
-$result = mysql_query($twitter_sql) or die('Query failed: ' . mysql_error());
-$result = mysql_query($flickr_sql) or die('Query failed: ' . mysql_error());
-$result = mysql_query($art_sql) or die('Query failed: ' . mysql_error());
-$result = mysql_query("COMMIT;") or die('Query failed: ' . mysql_error());
+$result = mysql_query("BEGIN;") or print('Query failed: ' . mysql_error());
+$result = mysql_query($post_sql) or print('Query failed: ' . mysql_error());
+$result = mysql_query($twitter_sql) or print('Query failed: ' . mysql_error());
+$result = mysql_query($flickr_sql) or print('Query failed: ' . mysql_error());
+$result = mysql_query($art_sql) or print('Query failed: ' . mysql_error());
+$result = mysql_query("COMMIT;") or print('Query failed: ' . mysql_error());
 
 ?>
