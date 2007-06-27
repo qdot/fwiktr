@@ -1,25 +1,5 @@
 <?php
-$test_xml =
-"<?xml version='1.0' standalone='yes'?>
-<fwiktr>
-  <post flickr_farm='2' flickr_server='1390' flickr_photoid='561673487' flickr_ownerid='96231946@N00' flickr_title='Murren 168' flickr_secret='f0bb795c69' post_source='1' chain_mechanism='1' selection_mechanism='1' flickr_total='12069'>
-    <url></url>
-    <date></date>
-    <text>Biosphere - Poa Alpina</text>
-    <tags>Biosphere,Poa,Alpina</tags>
-    <pos_output>Biosphere       NN      biosphere
--       :       -
-Poa     NP      unknown
-Alpina  NP      unknown</pos_output>
-    <twitter_author></twitter_author>
-    <twitter_location></twitter_location>
-  </post>
-</fwiktr>
-";
 
-#$info_array = get_array_fromXML($test_xml);
-
-#$doc = new SimpleXMLElement($test_xml);
 $doc = new SimpleXMLElement($_POST['fwiktr_post']);
 $info = $doc->post[0];
 
@@ -33,7 +13,7 @@ VALUES
 ".(string)$info['post_source'].",
 '".(string)$info->url."',
 '".(string)$info->text."',
-'".(string)$info->date."'
+'".(string)$info['post_date']."'
 );";
 
 if($info['post_source'] == 1)
@@ -41,11 +21,15 @@ if($info['post_source'] == 1)
     $twitter_sql = "
 INSERT INTO fwiktr_twitter_info (
 post_index,
-twitter_author,
-twitter_location)
+twitter_author_name,
+twitter_location,
+twitter_post_id,
+twitter_author_id)
 (SELECT MAX(t.post_index),
-'".(string)$info->twitter_author."',
-'".(string)$info->twitter_location."'
+'".(string)$info->twitter->twitter_author_name."',
+'".(string)$info->twitter->twitter_location."',
+".(string)$info->twitter->twitter_post_id.",
+".(string)$info->twitter->twitter_author_id."
 FROM fwiktr_posts AS t);
 ";
   }

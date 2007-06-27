@@ -11,7 +11,7 @@ CREATE TABLE fwiktr_post_sources
 	source_index INT AUTO_INCREMENT PRIMARY KEY,
 	source_name VARCHAR(255),
 	source_base_url VARCHAR(255)
-);
+) ENGINE=InnoDB;
 
 INSERT INTO fwiktr_post_sources (source_name, source_base_url) VALUES ("Twitter", "http://www.twitter.com");
 INSERT INTO fwiktr_post_sources (source_name, source_base_url) VALUES ("Overheard in New York", "http://www.overheardinnewyork.com");
@@ -20,7 +20,6 @@ CREATE TABLE fwiktr_posts
 (
 	post_index INT AUTO_INCREMENT PRIMARY KEY,
 	source_index INT NOT NULL REFERENCES fwiktr_post_sources(source_index),
-	post_url TEXT,
 	post_text TEXT,
 	post_date DATE
 ) ENGINE=InnoDB;
@@ -28,7 +27,9 @@ CREATE TABLE fwiktr_posts
 CREATE TABLE fwiktr_twitter_info
 (
 	post_index INT PRIMARY KEY REFERENCES fwiktr_posts(post_index),
-	twitter_author VARCHAR(30) NOT NULL,
+	twitter_post_id INT NOT NULL UNIQUE,
+	twitter_author_id INT NOT NULL UNIQUE,
+	twitter_author_name VARCHAR(30) NOT NULL,
 	twitter_location VARCHAR(255)
 ) ENGINE=InnoDB;
 
