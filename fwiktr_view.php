@@ -1,7 +1,7 @@
 <?php
 
 $art_index = (int)$_GET['art_index'];
-if(!is_int($art_index)) $art_index = 1;
+if(!is_int($art_index) || $art_index == 0) $art_index = 1;
 
 $link = mysql_connect('mysql.30helensagree.com', 'thirtyhelens_sql', 'carryapen')
     or die('Could not connect: ' . mysql_error());
