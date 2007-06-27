@@ -35,7 +35,6 @@ class Fwiktr:
     def __init__(self):
         self._config = None
         self._curl = pycurl.Curl()
-#        self._curl.global_init(pycurl.GLOBAL_DEFAULT)
 
         self.SetupFlickr()
         self.SetupTwitter()
@@ -82,17 +81,19 @@ class Fwiktr:
                 self._AddFwiktrData(dict([('post_pos_output', cgi.escape("\n".join(["\t".join(i) for i in tokens])))]))                
                 if self._RetreiveFlickrURLs(tokens):
                     self._PostDataToWeb()
-                time.sleep(30)
             except UnicodeEncodeError:
                 print "Twitter Message not ascii, skipping"        
 
     def _PostDataToWeb(self):
         xml_string = xml_block % (self.fwiktr_info)
         print xml_string
-        self._curl.setopt(pycurl.URL, 'http://www.30helensagree.com/fwiktr/fwiktr_post.php')
-        self._curl.setopt(pycurl.POST, 1)
-        self._curl.setopt(pycurl.POSTFIELDS, urllib.urlencode([("fwiktr_post", xml_string)]))
-        self._curl.perform()
+        try:
+            self._curl.setopt(pycurl.URL, 'http://www.30helensagree.com/fwiktr/fwiktr_post.php')
+            self._curl.setopt(pycurl.POST, 1)
+            self._curl.setopt(pycurl.POSTFIELDS, urllib.urlencode([("fwiktr_post", xml_string)]))
+            self._curl.perform()
+        except:
+            return
 
     def _IsTagNoun(self, tag_tuple):
         #Start by culling everything that's not a noun
@@ -104,20 +105,23 @@ class Fwiktr:
         self.fwiktr_info = dict(self.fwiktr_info, **new_dict)
 
     def _RetreiveFlickrURLs(self, tagList):
-        tag_string = ','.join([i[0] for i in filter(self._IsTagNoun, tagList)])
+        try:
+            tag_string = ','.join([i[0] for i in filter(self._IsTagNoun, tagList)])
 
-        if(tag_string == ""): return False
+            if(tag_string == ""): return False
 
-        rsp = self.fapi.photos_search(api_key=self._GetOption('flickr_api_key'),tags=tag_string)
-        self.fapi.testFailure(rsp)
-        if(rsp.photos[0]['total'] == 0): return False
+            rsp = self.fapi.photos_search(api_key=self._GetOption('flickr_api_key'),tags=tag_string)
+            self.fapi.testFailure(rsp)        
+            if(rsp.photos[0]['total'] == 0): return False
 
-        rand_index = random.randint(0, min(int(rsp.photos[0]['perpage']), int(rsp.photos[0]['total'])))
-        self._AddFwiktrData(dict([('flickr_total', rsp.photos[0]['total']), ('post_tags', cgi.escape(tag_string))]))
+            rand_index = random.randint(0, min(int(rsp.photos[0]['perpage']), int(rsp.photos[0]['total'])))
+            self._AddFwiktrData(dict([('flickr_total', rsp.photos[0]['total']), ('post_tags', cgi.escape(tag_string))]))
         
-	a = rsp.photos[0].photo[rand_index]
-        self._AddFwiktrData(dict([('flickr_server', a['server']), ('flickr_farm', a['farm']), ('flickr_photoid', a['id']), ('flickr_secret', a['secret']), ('flickr_ownerid', a['owner']), ('flickr_title', cgi.escape(a['title']))]))
-        return True
+            a = rsp.photos[0].photo[rand_index]
+            self._AddFwiktrData(dict([('flickr_server', a['server']), ('flickr_farm', a['farm']), ('flickr_photoid', a['id']), ('flickr_secret', a['secret']), ('flickr_ownerid', a['owner']), ('flickr_title', cgi.escape(a['title']))]))
+            return True
+        except:
+            return False;
         
 def main():
     f = Fwiktr()
