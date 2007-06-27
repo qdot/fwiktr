@@ -64,8 +64,17 @@ MAX(f.flickr_index)
 FROM fwiktr_posts AS p,
 fwiktr_flickr AS f);";
 
-print $post_sql."\n";
-print $twitter_sql."\n";
-print $flickr_sql."\n";
-print $art_sql."\n";
+$link = mysql_connect('mysql.30helensagree.com', 'thirtyhelens_sql', 'carryapen')
+    or die('Could not connect: ' . mysql_error());
+echo 'Connected successfully';
+mysql_select_db('30helensagree') or die('Could not select database');
+
+// Performing SQL query
+$result = mysql_query("BEGIN;") or die('Query failed: ' . mysql_error());
+$result = mysql_query($post_sql) or die('Query failed: ' . mysql_error());
+$result = mysql_query($twitter_sql) or die('Query failed: ' . mysql_error());
+$result = mysql_query($flickr_sql) or die('Query failed: ' . mysql_error());
+$result = mysql_query($art_sql) or die('Query failed: ' . mysql_error());
+$result = mysql_query("COMMIT;") or die('Query failed: ' . mysql_error());
+
 ?>
