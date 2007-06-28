@@ -48,9 +48,11 @@ print "
 <TITLE>fwiktr generation for post ".$row->post_index."</TITLE>
 </HEAD>
 <BODY>
+<A HREF='fwiktr_view.php?art_index=".(string)($art_index-1)."'>Previous</A><BR>
+<A HREF='fwiktr_view.php?art_index=".(string)($art_index+1)."'>Next</A><BR>
+<BR><BR>
+<FONT SIZE=+2>".$row->post_text."</FONT><BR>\n
 <A HREF='".$flickr_web_url."'><IMG SRC='".$flickr_photo_url."' BORDER=0></A><BR>
-<B>POST TEXT:</B>
-".$row->post_text."<BR>\n
 <B>POST TAGS:</B>
 ".$row->art_tags."<BR>\n
 <B>POS POS OUTPUT:</B><BR>
@@ -59,7 +61,7 @@ print "
 </PRE><BR>\n
 <BR><BR>
 <FORM METHOD=GET>
-Seconds until refresh (refreshs in order, minimum 5 seconds, 0 to stop): <INPUT TYPE='TEXT' NAME='art_refresh' VALUE=".$art_refresh."><BR>
+Seconds until refresh (cycles pictures sequentially, minimum 5 seconds, set to 0 to stop): <INPUT TYPE='TEXT' NAME='art_refresh' VALUE=".$art_refresh."><BR>
 Goto Art (Total Artses: ".$full_count.") : <INPUT TYPE='TEXT' NAME='art_index' VALUE=".$art_index."><BR>
 <INPUT TYPE=SUBMIT VALUE=Artify>
 </FORM>
