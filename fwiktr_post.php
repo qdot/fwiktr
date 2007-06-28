@@ -3,6 +3,11 @@
 $doc = new SimpleXMLElement(urldecode($_POST['fwiktr_post']));
 $info = $doc->post[0];
 
+$link = mysql_connect('mysql.30helensagree.com', 'thirtyhelens_sql', 'carryapen')
+    or die('Could not connect: ' . mysql_error());
+echo 'Connected successfully';
+mysql_select_db('30helensagree') or die('Could not select database');
+
 $post_sql = "INSERT INTO fwiktr_posts (
 source_index,
 post_text,
@@ -10,7 +15,7 @@ post_date)
 VALUES
 (
 ".(string)$info['post_source'].",
-'".(string)$info->text."',
+'".mysql_real_escape_string((string)$info->text)."',
 '".(string)$info['post_date']."'
 );";
 
@@ -46,7 +51,7 @@ VALUES
 '".(string)$info['flickr_photoid']."',
 '".(string)$info['flickr_ownerid']."',
 '".(string)$info['flickr_secret']."',
-'".(string)$info['flickr_title']."'
+'".mysql_real_escape_string((string)$info['flickr_title'])."'
 );";
 
 $art_sql = "INSERT INTO fwiktr_art (
@@ -57,17 +62,12 @@ post_index,
 flickr_index
 ) (SELECT 
 '".(string)$doc->post[0]->tags."',
-'".(string)$doc->post[0]->pos_output."',
+'".mysql_real_escape_string((string)$doc->post[0]->pos_output)."',
 ".(string)$doc->post[0]['flickr_total'].",
 MAX(p.post_index),
 MAX(f.flickr_index)
 FROM fwiktr_posts AS p,
 fwiktr_flickr AS f);";
-
-$link = mysql_connect('mysql.30helensagree.com', 'thirtyhelens_sql', 'carryapen')
-    or die('Could not connect: ' . mysql_error());
-echo 'Connected successfully';
-mysql_select_db('30helensagree') or die('Could not select database');
 
 // Performing SQL query
 $result = mysql_query("BEGIN;") or print('Query failed: ' . mysql_error());
