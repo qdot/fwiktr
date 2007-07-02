@@ -1,3 +1,5 @@
+DROP TABLE IF EXISTS fwiktr_posts;
+DROP TABLE IF EXISTS fwiktr_pictures;
 DROP TABLE IF EXISTS fwiktr_post_source;
 DROP TABLE IF EXISTS fwiktr_post;
 DROP TABLE IF EXISTS fwiktr_chain_mechanism;
@@ -103,7 +105,7 @@ CREATE TABLE fwiktr_art
 
 CREATE TABLE fwiktr_transform
 (
-	transform_type INT NOT NULL REFERENCES fwiktr_transform_type(transform_type_index),
+	transform_type_index INT NOT NULL REFERENCES fwiktr_transform_type(transform_type_index),
 	art_index INT NOT NULL REFERENCES fwiktr_art(art_index) ON DELETE CASCADE,
 	transform_before TEXT,
 	transform_after TEXT,
