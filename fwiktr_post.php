@@ -1,74 +1,76 @@
 <?php
 
-$doc = new SimpleXMLElement(urldecode($_POST['fwiktr_post']));
-$info = $doc->post[0];
+$text = urldecode($_POST['fwiktr_post']);
+
+print "======================================\n";
+print $text;
+print "======================================\n";
+$doc = new SimpleXMLElement($text);
+$info = $doc;
 
 $link = mysql_connect('mysql.30helensagree.com', 'thirtyhelens_sql', 'carryapen')
     or die('Could not connect: ' . mysql_error());
-echo 'Connected successfully';
 mysql_select_db('30helensagree') or die('Could not select database');
 
-$post_sql = "INSERT INTO fwiktr_posts (
-source_index,
+$post_info = $doc->xpath("/post_info");
+
+//Query Order:
+// - Post OR
+// - Picture THEN
+// - Art THEN
+// - Transforms
+
+$post_sql[0] =
+"INSERT INTO fwiktr_post (
+post_source_index,
+post_date,
 post_text,
-post_date)
+post_info)
 VALUES
 (
-".(string)$info['post_source'].",
-'".mysql_real_escape_string((string)$info->text)."',
-'".(string)$info['post_date']."'
-);";
+".(string)$info->post[0]->post_source.",
+'".(string)$info->post[0]->post_date."',
+'".mysql_real_escape_string((string)$info->post[0]->post_text)."',
+'".mysql_real_escape_string((string)($info->post_info[0]->asXml()))."',
+)";
 
-if($info['post_source'] == 1)
-  {
-    $twitter_sql = "
-INSERT INTO fwiktr_twitter_info (
-post_index,
-twitter_author_name,
-twitter_location,
-twitter_post_id,
-twitter_author_id)
-(SELECT MAX(t.post_index),
-'".(string)$info->twitter->twitter_author_name."',
-'".(string)$info->twitter->twitter_location."',
-".(string)$info->twitter->twitter_post_id.",
-".(string)$info->twitter->twitter_author_id."
-FROM fwiktr_posts AS t);
-";
-  }
-
-$flickr_sql = "INSERT INTO fwiktr_flickr (
-flickr_server,
-flickr_farm,
-flickr_photo_id,
-flickr_owner_id,
-flickr_secret,
-flickr_title)
+$post_sql[1] =
+"INSERT INTO fwiktr_picture (
+picture_source_index,
+picture_info)
 VALUES
 (
-".(string)$info['flickr_server'].",
-".(string)$info['flickr_farm'].",
-'".(string)$info['flickr_photoid']."',
-'".(string)$info['flickr_ownerid']."',
-'".(string)$info['flickr_secret']."',
-'".mysql_real_escape_string((string)$info['flickr_title'])."'
-);";
+".(string)$info->picture[0]->picture_source.",
+'".mysql_real_escape_string((string)($info->picture_info[0]->asXml()))."'
+)";
 
-$art_sql = "INSERT INTO fwiktr_art (
+$post_sql[2] = "INSERT INTO fwiktr_art (
 art_tags, 
-art_pos_output, 
-art_total_returned, 
 post_index, 
-flickr_index
+picture_index
 ) (SELECT 
-'".(string)$doc->post[0]->tags."',
-'".mysql_real_escape_string((string)$doc->post[0]->pos_output)."',
-".(string)$doc->post[0]['flickr_total'].",
+'".(string)$info->art[0]->art_tags."',
 MAX(p.post_index),
 MAX(f.flickr_index)
-FROM fwiktr_posts AS p,
-fwiktr_flickr AS f);";
+FROM
+fwiktr_post AS p,
+fwiktr_picture AS f)";
 
+foreach ($info->transforms->transform as $transform)
+	{
+		$transform_query = "
+INSERT INTO fwiktr_transform ()
+(SELECT
+MAX(a.art_index),
+".$transform->transform_step.",
+".$transform->transform_index.",
+'".mysql_real_escape_string((string)$transform->transform_before)."',
+'".mysql_real_escape_string((string)$transform->transform_after)."',
+'".mysql_real_escape_string((string)$transform->transform_output)."' FROM
+fwiktr_art AS a)";
+		array_push($post_sql, $transform_query);
+	}
+/*
 // Performing SQL query
 $result = mysql_query("BEGIN;") or print('Query failed: ' . mysql_error());
 $result = mysql_query($post_sql) or print('Query failed: ' . mysql_error());
@@ -76,5 +78,10 @@ $result = mysql_query($twitter_sql) or print('Query failed: ' . mysql_error());
 $result = mysql_query($flickr_sql) or print('Query failed: ' . mysql_error());
 $result = mysql_query($art_sql) or print('Query failed: ' . mysql_error());
 $result = mysql_query("COMMIT;") or print('Query failed: ' . mysql_error());
+*/
 
+foreach ($post_sql as $post)
+{
+	print $post."\n";
+}
 ?>
