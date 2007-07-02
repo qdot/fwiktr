@@ -12,32 +12,75 @@ import cgi
 from flickrapi import FlickrAPI
 from nltk import tag, corpora, tokenize
 
-xml_block = '''<?xml version='1.0' standalone='yes'?>
+fwiktr_block = '''<?xml version='1.0' standalone='yes'?>
 <fwiktr>
-  <post flickr_farm='%(flickr_farm)s' flickr_server='%(flickr_server)s' flickr_photoid='%(flickr_photoid)s' flickr_ownerid='%(flickr_ownerid)s' flickr_title='%(flickr_title)s' flickr_secret='%(flickr_secret)s' post_source='%(post_source)s' chain_mechanism='%(chain_mechanism)s' selection_mechanism='%(selection_mechanism)s' flickr_total='%(flickr_total)s' post_date='%(post_date)s'>
-    <text>%(post_text)s</text>
-    <tags>%(post_tags)s</tags>
-    <pos_output>%(post_pos_output)s</pos_output>
-    %(twitter_info_block)s
-  </post>
+    %(post_info_xml)s
+    %(art_info_xml)s
+    %(picture_info_xml)s
+    %(post_source_info_xml)s
+    %(picture_specific_info_xml)s
+    <transforms>
+      %(transform_info_xml)s
+    </transforms>
 </fwiktr>
 '''
 
-twitter_info_block = '''
-<twitter>
+post_info_xml = '''
+  <post>
+    <post_source>%(post_source)s</post_source>
+    <post_text>%(post_text)s</post_text>
+    <post_date>%(post_date)s</post_date>
+  </post>
+'''
+
+picture_info_xml = '''
+  <picture>
+	<picture_source>%(picture_source)s</picture_source>
+  </picture>
+'''
+
+art_info_xml = '''
+  <art>
+    <art_tags>%(art_tags)s</art_tags>
+  </art>
+'''
+
+transform_info_xml = '''
+  <transform>
+    <transform_step>%(transform_step)s</transform_step>
+    <transform_index>%(transform_index)s</transform_index>
+    <transform_before>%(transform_before)s</transform_before>
+    <transform_after>%(transform_after)s</transform_after>
+    <transform_output>%(transform_output)s</transform_output>
+  </transform>
+'''
+
+twitter_info_xml = '''
+  <post_info>
     <twitter_post_id>%(twitter_post_id)s</twitter_post_id>
     <twitter_author_id>%(twitter_author_id)s</twitter_author_id>
     <twitter_author_name>%(twitter_author_name)s</twitter_author_name>
     <twitter_location>%(twitter_location)s</twitter_location>
-</twitter>
+  </post_info>
 '''
-class Fwiktr:
+
+flickr_info_xml = '''
+  <picture_info>
+    <flickr_farm>%(flickr_farm)s</flickr_farm>
+    <flickr_server>%(flickr_server)s</flickr_server>
+    <flickr_photoid>%(flickr_photoid)s</flickr_photoid>
+    <flickr_ownerid>%(flickr_ownerid)s</flickr_ownerid>
+    <flickr_title>%(flickr_title)s</flickr_title>
+    <flickr_secret>%(flickr_secret)s</flickr_secret>
+  </picture_info>
+'''
+
+gCurl = pycurl.Curl()
+
+class FwiktrServiceManager:
     def __init__(self):
         self._config = None
-        self._curl = pycurl.Curl()
-
-        self.SetupFlickr()
-        self.SetupTwitter()
+        self._SetupService()
 
     def _GetOption(self, option):
         try:
@@ -51,83 +94,244 @@ class Fwiktr:
             self._config.read(os.path.expanduser('~/.fwiktrrc'))        
         return self._config
 
-    def SetupFlickr(self):
-        self.fapi = FlickrAPI(self._GetOption('flickr_api_key'), self._GetOption('flickr_api_secret'))
+#
+# Post Services
+#
 
-    def SetupTwitter(self):
-        self.tapi = twitter.Api()        
+class FwiktrPostRetriever(FwiktrServiceManager):
+    def __init__(self):
+        FwiktrServiceManager.__init__(self)
+        self._msg_list = []
+        self._current_msg = None
 
-    def RunPOSTagger(self):
-        twitter_messages = self.tapi.GetPublicTimeline()
-        for message in twitter_messages:
-            try:
-                self.fwiktr_info = {'chain_mechanism':1, 'selection_mechanism':1, 'post_source':1, 'post_date':message.created_at, 'post_text':message.text}
+    def NextPost(self):
+        #Iterate to the next post on the list. If we've exhausted the list, pull a new one        
+        if len(self._msg_list) is 0:
+            self._GetNewPosts()
+        self._current_msg = self._msg_list.pop()
 
-                cmd = 'echo "' + message.text + '" | treetagger/cmd/tree-tagger-english > ./twitter_message_output.txt'
-                os.system(cmd)
+    def GetPostDate(self):
+        raise Exception, "ONLY TO BE CALLED FROM CHILD CLASSES"
 
-                pos_file = open('twitter_message_output.txt', 'r')
-                tokens = []
-                self.parse_string = ""
-                for line in pos_file:
-                     current_line = []
-                     self.parse_string += line
-                     for value in tokenize.whitespace(line):
-                         current_line.append(value)
-                     tokens.append(current_line)
-                self.twitter_info = {'twitter_post_id':message.id,'twitter_author_id':message.user.id,'twitter_author_name':message.user.screen_name,'twitter_location':message.user.location}
-                twitter_block = twitter_info_block % self.twitter_info
-                self._AddFwiktrData(dict([('twitter_info_block',twitter_block)]))                                           
-                self._AddFwiktrData(dict([('post_pos_output', cgi.escape("\n".join(["\t".join(i) for i in tokens])))]))                
-                if self._RetreiveFlickrURLs(tokens):
-                    self._PostDataToWeb()
-            except UnicodeEncodeError:
-                print "Twitter Message not ascii, skipping"        
+    def GetPostText(self):
+        raise Exception, "ONLY TO BE CALLED FROM CHILD CLASSES"
 
-    def _PostDataToWeb(self):
-        xml_string = xml_block % (self.fwiktr_info)
-        print xml_string
+    def GetPostXML(self):
+        raise Exception, "ONLY TO BE CALLED FROM CHILD CLASSES"
+
+    def _GetNewPosts(self):
+        raise Exception, "ONLY TO BE CALLED FROM CHILD CLASSES"
+
+
+class FwiktrTwitterRetriever(FwiktrPostRetriever):
+    def __init__(self):
+        FwiktrPostRetriever.__init__(self)
+
+    def _SetupService(self):
+        self._tapi = twitter.Api()
+
+    def _GetNewPosts(self):
+        self._msg_list = self._tapi.GetPublicTimeline()
+
+    def GetPostDate(self):
+        return self._current_msg.created_at
+
+    def GetPostText(self):
+        return self._current_msg.text
+
+    def GetPostXML(self):
+        message = self._current_msg
+        self.twitter_info = {'twitter_post_id':message.id,'twitter_author_id':message.user.id,'twitter_author_name':message.user.screen_name,'twitter_location':message.user.location}
+        return twitter_info_xml % self.twitter_info
+        
+#
+# Picture Services
+#
+
+class FwiktrFlickrRetriever(FwiktrServiceManager):
+    def __init__(self):
+        self._pic_info = []
+        FwiktrServiceManager.__init__(self)
+
+    def _SetupService(self):
+        self._fapi = FlickrAPI(self._GetOption('flickr_api_key'), self._GetOption('flickr_api_secret'))
+
+    def GetPictureXML(self):
+        flickr_info = dict([('flickr_server', self._pic_info['server']), ('flickr_farm', self._pic_info['farm']), ('flickr_photoid', self._pic_info['id']), ('flickr_secret', self._pic_info['secret']), ('flickr_ownerid', self._pic_info['owner']), ('flickr_title', cgi.escape(self._pic_info['title']))])
+        return flickr_info_xml % flickr_info
+
+    def GetNewPicture(self, tag_list):
         try:
-            self._curl.setopt(pycurl.URL, 'http://www.30helensagree.com/fwiktr/fwiktr_post.php')
-            self._curl.setopt(pycurl.POST, 1)
-            self._curl.setopt(pycurl.POSTFIELDS, urllib.urlencode([("fwiktr_post", xml_string)]))
-            self._curl.perform()
+            tag_string = ','.join(tag_list[0:19])
+            if(tag_string == ""): return False
+            rsp = self._fapi.photos_search(api_key=self._GetOption('flickr_api_key'),tags=tag_string)
+            self._fapi.testFailure(rsp)        
+            if(rsp.photos[0]['total'] == 0): return False
+            rand_index = random.randint(0, min(int(rsp.photos[0]['perpage']), int(rsp.photos[0]['total'])))
+            self._pic_info = rsp.photos[0].photo[rand_index]            
+            return True 
         except:
-            return
+            return False        
+
+#
+# Tag Services
+#
+
+class FwiktrTransformManager:
+    def __init__(self):
+        self._before = None
+        self._after = None
+        self._output = None
+        self._step = None
+
+    def SetStep(self, i):
+        self._step = i
+
+    def GetTransformXML(self):
+        transform_info = {"transform_before":self._before, "transform_after":self._after, "transform_output":self._output, "transform_step":self._step, "transform_index":self._index}
+        return transform_info_xml % transform_info
+
+class FwiktrTokenize(FwiktrTransformManager):
+    def __init__(self):
+        self._index = 1
+
+    def GetTagList(self, text):
+        self._before = text
+        tags = []
+        [tags.append(i) for i in tokenize.whitespace(text)]
+        self._output = ""
+        self._after = tags
+        return tags
+
+class FwiktrTreeTagger(FwiktrTransformManager):
+    def __init__(self):
+        FwiktrTransformManager.__init__(self)
+
+    def GetTagList(self, text):
+        self._before = text
+        self._output = ""
+        cmd = "echo \"%s\" | treetagger/cmd/tree-tagger-english > ./twitter_message_output.txt" % text
+        os.system(cmd)
+        pos_file = open('twitter_message_output.txt', 'r')
+        tokens = []
+        self.parse_string = ""
+        for line in pos_file:
+            current_line = []
+            self._output += line
+            for value in tokenize.whitespace(line):
+                current_line.append(value)
+            tokens.append(current_line)
+        
+        self._output = self._output.replace("<unknown>", "[unknown]")
+        filtered_tags = filter(self._ComparisonFunction, tokens)
+        final_tags = []
+        [final_tags.append(i[0]) for i in filtered_tags]
+        self._after = final_tags
+        return final_tags
+   
+    def _ComparisonFunction(self, list):
+        raise Exception, "COMPARISON MUST BE DEFINED IN CHILD CLASS"
+
+class FwiktrTreeTaggerNounsOnly(FwiktrTreeTagger):      
+    def __init__(self):
+        self._index = 2
+        FwiktrTreeTagger.__init__(self)
+
+    def _ComparisonFunction(self, list):
+        return self._IsTagNoun(list)
 
     def _IsTagNoun(self, tag_tuple):
         #Start by culling everything that's not a noun
-        if tag_tuple[1] == "NP" or tag_tuple[1] == "NN" or tag_tuple[1] == "NNS":
+        if tag_tuple[1] in ["NP", "NN", "NNS", "NPS"]:
             return True
         return False
-            
-    def _AddFwiktrData(self, new_dict):
-        self.fwiktr_info = dict(self.fwiktr_info, **new_dict)
 
-    def _RetreiveFlickrURLs(self, tagList):
+#
+# Seasoning Services
+#
+
+#
+# Weather Seasoner
+#
+
+#
+# Google Recommendation Seasoner
+#
+
+#
+# Main Functionality
+#
+
+class Fwiktr:
+    def __init__(self):
+        self._post_rets = [FwiktrTwitterRetriever()]
+        self._pic_rets = [FwiktrFlickrRetriever()]
+        self._tag_rets = [FwiktrTokenize(), FwiktrTreeTaggerNounsOnly()]
+    def CreateArt(self):
+        xml_info = dict()
+
+        #Pull post from source
+        post_ret = self._post_rets[0]
+        post_ret.NextPost()
         try:
-            tag_string = ','.join([i[0] for i in filter(self._IsTagNoun, tagList)])
-
-            if(tag_string == ""): return False
-
-            rsp = self.fapi.photos_search(api_key=self._GetOption('flickr_api_key'),tags=tag_string)
-            self.fapi.testFailure(rsp)        
-            if(rsp.photos[0]['total'] == 0): return False
-
-            rand_index = random.randint(0, min(int(rsp.photos[0]['perpage']), int(rsp.photos[0]['total'])))
-            self._AddFwiktrData(dict([('flickr_total', rsp.photos[0]['total']), ('post_tags', cgi.escape(tag_string))]))
-        
-            a = rsp.photos[0].photo[rand_index]
-            self._AddFwiktrData(dict([('flickr_server', a['server']), ('flickr_farm', a['farm']), ('flickr_photoid', a['id']), ('flickr_secret', a['secret']), ('flickr_ownerid', a['owner']), ('flickr_title', cgi.escape(a['title']))]))
-            return True
+            post_text = str(post_ret.GetPostText())        
         except:
-            return False;
+            print "Non-ASCII Message, skipping"
+            return
+
+        #Identify source's language
+
+        #Pull tags from source
+
+        tag_ret = self._tag_rets[1]
+        tag_ret.SetStep(1)
+        tag_list = tag_ret.GetTagList(post_text)
+
+        xml_info["transform_info_xml"] = tag_ret.GetTransformXML()
+
+        #Season tag list
+
+        #Retrieve picture using tags
         
+        pic_ret = self._pic_rets[0]
+        if pic_ret.GetNewPicture(tag_list) is False: return
+
+        #Post data to web
+
+        picture_info_dict = {'picture_source':1}
+        xml_info["picture_info_xml"] = picture_info_xml % picture_info_dict
+        art_info_dict = {'art_tags':",".join(tag_list)}
+        xml_info["art_info_xml"] = art_info_xml % (art_info_dict)
+        post_info_dict = {'post_source':1, 'post_date':post_ret.GetPostDate(), 'post_text':cgi.escape(post_text)}
+        xml_info["post_info_xml"] = post_info_xml % (post_info_dict)
+
+        xml_info["post_source_info_xml"] = post_ret.GetPostXML()
+        xml_info["picture_specific_info_xml"] = pic_ret.GetPictureXML()
+
+        fwiktr_info = fwiktr_block % xml_info
+
+        self._PostDataToWeb(fwiktr_info)
+                
+    def _PostDataToWeb(self, info):
+        try:
+            print info
+            gCurl.setopt(pycurl.URL, 'http://www.30helensagree.com/fwiktr/fwiktr_post.php')
+            gCurl.setopt(pycurl.POST, 1)
+            gCurl.setopt(pycurl.POSTFIELDS, urllib.urlencode([("fwiktr_post", info)]))
+            gCurl.perform()
+        except:
+            return
+
 def main():
     f = Fwiktr()
-    while 1:
-        f.RunPOSTagger()
-        time.sleep(60)
+    i = 0
+    while i < 5:
+        try:
+            f.CreateArt()
+            i = i + 1
+        except KeyboardInterrupt:
+            return
+#    time.sleep(60)
 
 if __name__ == "__main__":
     main()

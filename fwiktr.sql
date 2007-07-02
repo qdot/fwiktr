@@ -1,65 +1,95 @@
-DROP TABLE IF EXISTS fwiktr_post_sources;
-DROP TABLE IF EXISTS fwiktr_posts;
-DROP TABLE IF EXISTS fwiktr_twitter_info;
-DROP TABLE IF EXISTS fwiktr_flickr;
+DROP TABLE IF EXISTS fwiktr_post_source;
+DROP TABLE IF EXISTS fwiktr_post;
 DROP TABLE IF EXISTS fwiktr_chain_mechanism;
 DROP TABLE IF EXISTS fwiktr_selection_mechanism;
+DROP TABLE IF EXISTS fwiktr_picture_source;
+DROP TABLE IF EXISTS fwiktr_picture;
 DROP TABLE IF EXISTS fwiktr_art;
+DROP TABLE IF EXISTS fwiktr_transform_type;
+DROP TABLE IF EXISTS fwiktr_transform;
 
-CREATE TABLE fwiktr_post_sources
+CREATE TABLE fwiktr_post_source
 (
-	source_index INT AUTO_INCREMENT PRIMARY KEY,
-	source_name VARCHAR(255),
-	source_base_url VARCHAR(255)
+	post_source_index INT AUTO_INCREMENT PRIMARY KEY,
+	post_source_name VARCHAR(50),
+	post_source_url VARCHAR(255)
 ) ENGINE=InnoDB;
 
-INSERT INTO fwiktr_post_sources (source_name, source_base_url) VALUES ("Twitter", "http://www.twitter.com");
-INSERT INTO fwiktr_post_sources (source_name, source_base_url) VALUES ("Overheard in New York", "http://www.overheardinnewyork.com");
+INSERT INTO fwiktr_post_source (post_source_name, post_source_url) VALUES ("Twitter", "http://www.twitter.com");
+INSERT INTO fwiktr_post_source (post_source_name, post_source_url) VALUES ("Overheard in New York", "http://www.overheardinnewyork.com");
 
-CREATE TABLE fwiktr_posts
+CREATE TABLE fwiktr_post
 (
 	post_index INT AUTO_INCREMENT PRIMARY KEY,
-	source_index INT NOT NULL REFERENCES fwiktr_post_sources(source_index),
+	post_source_index INT NOT NULL REFERENCES fwiktr_post_source(post_source_index),
+	post_date DATETIME,
 	post_text TEXT,
-	post_date DATE
+	post_info TEXT
 ) ENGINE=InnoDB;
 
-CREATE TABLE fwiktr_twitter_info
+CREATE TABLE fwiktr_picture_source
 (
-	post_index INT PRIMARY KEY REFERENCES fwiktr_posts(post_index),
-	twitter_post_id INT NOT NULL UNIQUE,
-	twitter_author_id INT NOT NULL UNIQUE,
-	twitter_author_name VARCHAR(30) NOT NULL,
-	twitter_location VARCHAR(255)
+	picture_source_index INT AUTO_INCREMENT PRIMARY KEY,
+	picture_source_name VARCHAR(50) NOT NULL,
+	picture_source_base_url VARCHAR(200) NOT NULL,
+	picture_source_site_url_builder VARCHAR(200) NOT NULL,
+	picture_source_direct_url_builder VARCHAR(200) NOT NULL
 ) ENGINE=InnoDB;
 
-CREATE TABLE fwiktr_flickr
+INSERT INTO fwiktr_picture_source
+(picture_source_name,
+picture_source_base_url)
+VALUES
+("Flickr", "http://www.flickr.com");
+
+INSERT INTO fwiktr_picture_source
+(picture_source_name,
+picture_source_base_url)
+VALUES
+("Picasa", "http://www.picasa.com");
+
+CREATE TABLE fwiktr_picture
 (
-	flickr_index INT AUTO_INCREMENT PRIMARY KEY,
-	flickr_server INT,
-	flickr_farm INT,
-	flickr_photo_id VARCHAR(50),
-	flickr_owner_id VARCHAR(50),
-	flickr_secret VARCHAR(50),
-	flickr_title VARCHAR(200)
+	picture_index INT AUTO_INCREMENT PRIMARY KEY,
+	picture_source_index INT NOT NULL REFERENCES fwiktr_picture_source(picture_source_index),
+	picture_info TEXT
 ) ENGINE=InnoDB;
 
-CREATE TABLE fwiktr_chain_mechanism
+CREATE TABLE fwiktr_transform_type
 (
-	chain_mechanism_index INT AUTO_INCREMENT PRIMARY KEY,
-	chain_mechanism_name VARCHAR(50)
+	transform_type_index INT AUTO_INCREMENT PRIMARY KEY,
+	transform_type_name VARCHAR(50),
+	transform_type_description TEXT
 ) ENGINE=InnoDB;
 
-INSERT INTO fwiktr_chain_mechanism (chain_mechanism_name) VALUES ('Any');
-INSERT INTO fwiktr_chain_mechanism (chain_mechanism_name) VALUES ('All');
+INSERT INTO fwiktr_transform_type
+(transform_type_name, 
+transform_type_description)
+VALUES
+("Tokenize String",
+"Tokenize the string into a list and remote sentinels"
+);		  
 
-CREATE TABLE fwiktr_selection_mechanism
-(
-	selection_mechanism_index INT AUTO_INCREMENT PRIMARY KEY,
-	selection_mechanism_name VARCHAR(50)
-) ENGINE=InnoDB;
+INSERT INTO fwiktr_transform_type
+(transform_type_name,
+transform_type_description)
+VALUES
+("TreeTagger - Nouns Only",
+"Run the TreeTagger program against the string, and use all tags returned as NN, NP, NNS, or NPS");
 
-INSERT INTO fwiktr_selection_mechanism (selection_mechanism_name) VALUES ('Random');
+INSERT INTO fwiktr_transform_type
+(transform_type_name,
+transform_Type_description)
+VALUES
+("Flickr - Any Tags",
+"Search for any tags given (universal OR)");
+
+INSERT INTO fwiktr_transform_type
+(transform_type_name,
+transform_Type_description)
+VALUES
+("Flickr - All Tags",
+"Search for all tags given (universal AND)");
 
 CREATE TABLE fwiktr_art
 (
@@ -67,10 +97,17 @@ CREATE TABLE fwiktr_art
 	art_tags TEXT,
 	art_pos_output TEXT,
 	art_date TIMESTAMP DEFAULT NOW(),
-	art_total_returned INT,
-	chain_mechanism_index INT DEFAULT 1 REFERENCES fwiktr_chain_mechanism(chain_mechanism_index),
-	selection_mechanism_index INT DEFAULT 1 REFERENCES fwiktr_selection_mechanism(selection_mechanism_index),
-	post_index INT REFERENCES fwiktr_posts(post_index),
-	flickr_index INT REFERENCES fwiktr_flickr(flickr_index),
-	UNIQUE KEY(post_index, flickr_index)
+	post_index INT REFERENCES fwiktr_post(post_index) ON DELETE CASCADE,
+	picture_index INT REFERENCES fwiktr_picture(flickr_index) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE fwiktr_transform
+(
+	transform_type INT NOT NULL REFERENCES fwiktr_transform_type(transform_type_index),
+	art_index INT NOT NULL REFERENCES fwiktr_art(art_index) ON DELETE CASCADE,
+	transform_before TEXT,
+	transform_after TEXT,
+	transform_output TEXT,	
+	transform_step INT NOT NULL,
+	PRIMARY KEY (art_index, transform_step)
 ) ENGINE=InnoDB;
