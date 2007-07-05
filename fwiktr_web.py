@@ -76,6 +76,14 @@ gCurl = pycurl.Curl()
 def OutputTagList(tag_list):
     return "<tags>" + ''.join( [("<tag>%s</tag>"%i) for i in tag_list] ) + "</tags>"
 
+class Callable:
+    def __init__(self, anycallable):
+        self.__call__ = anycallable
+
+#
+# Base Classes
+#
+
 class FwiktrServiceManager:
     def __init__(self):
         self._config = None
@@ -92,6 +100,45 @@ class FwiktrServiceManager:
             self._config = ConfigParser.ConfigParser()
             self._config.read(os.path.expanduser('~/.fwiktrrc'))        
         return self._config
+
+class FwiktrTransformManager:
+    step = 0
+    transform_xml = ""
+
+    def __init__(self):
+        self._before = None
+        self._after = None
+        self._output = None
+        self._description = "Generic Transform Description. PLEASE CHANGE."
+        self._name = "Generic Transform Name. PLEASE CHANGE."
+
+    def ClearTransformInfo():
+        FwiktrTransformManager.step = 0
+        FwiktrTransformManager.transform_xml = ""
+    ClearTransformInfo = Callable(ClearTransformInfo)
+
+    def AddTransformInfo(self):
+        FwiktrTransformManager.transform_xml += self._BuildTransformXML()
+        FwiktrTransformManager.step = FwiktrTransformManager.step + 1
+
+    def RunTransform(self, transform_data):
+        if isinstance(transform_data, list):
+            self._before = transform_data
+        else:
+            self._before = []
+        self._after = self._Run(transform_data)
+        self.AddTransformInfo()
+        return self._after
+
+    def _Run(self, transform_data):
+        raise Exception, "ONLY TO BE CALLED FROM CHILD CLASSES"
+
+    def GetTransformXML(self):
+        return FwiktrTransformManager.transform_xml
+
+    def _BuildTransformXML(self):
+        transform_info = {"transform_before":OutputTagList(self._before), "transform_after":OutputTagList(self._after), "transform_output":self._output, "transform_step":FwiktrTransformManager.step, "transform_name":self._name, "transform_description":self._description}
+        return transform_info_xml % transform_info
 
 #
 # Post Services
@@ -125,7 +172,6 @@ class FwiktrPostRetriever(FwiktrServiceManager):
     def _GetNewPosts(self):
         raise Exception, "ONLY TO BE CALLED FROM CHILD CLASSES"
 
-
 class FwiktrTwitterRetriever(FwiktrPostRetriever):
     def __init__(self):
         FwiktrPostRetriever.__init__(self)
@@ -150,7 +196,29 @@ class FwiktrTwitterRetriever(FwiktrPostRetriever):
 # Picture Services
 #
 
+class FwiktrFlickrFuckItSelectionTransform(FwiktrTransformManager):
+    def __init__(self):
+        self._description = "Uses the 'ANY' (Universal OR) search to seed the picture search, then selects a random picture."
+        self._name = "Flickr 'Fuck It' Selector"
+    def _RunTransform(self, transform_data):
+        return
+
+class FwiktrFlickrFullANDSelectionTransform(FwiktrTransformManager):
+    def __init__(self):
+        self._description = "Uses the 'ALL' (Universal AND) search to seed the picture search, then selects a random picture if there are results. If not, falls back to 'Fuck It' search."
+        self._name = "Flickr 'Full AND' Selector"
+    def _RunTransform(self, transform_data):
+        return
+        
+class FwiktrFlickrTagCullTransform(FwiktrTransformManager):
+    def __init__(self):
+        self._description = "Culls tag list down to 20 tags (maximum allowed by flickr API)"
+        self._name = "Flickr Tag Cull Transformer"
+    def _RunTransform(self, transform_data):
+        return tag_list[0:19]
+        
 class FwiktrFlickrRetriever(FwiktrServiceManager):
+    transformList = [FwiktrFlickrFuckItSelectionTransform(), FwiktrFlickrFullANDSelectionTransform()]
     def __init__(self):
         self._pic_info = []
         FwiktrServiceManager.__init__(self)
@@ -165,42 +233,28 @@ class FwiktrFlickrRetriever(FwiktrServiceManager):
     def GetPictureData(self):
         return {'picture_title':cgi.escape(self._pic_info['title']), 'picture_info':self._GetPictureSpecificData()}
         
-
     def _GetPictureSpecificData(self):
         return flickr_info_xml % {'flickr_server':self._pic_info['server'], 'flickr_farm':self._pic_info['farm'], 'flickr_photo_id':self._pic_info['id'], 'flickr_secret':self._pic_info['secret'], 'flickr_owner_id':self._pic_info['owner']}
 
     def GetNewPicture(self, tag_list):
         try:
-            tag_string = ','.join(tag_list[0:19])
+            if len(tag_list) > 20:
+                culler = FwiktrFlickrTagCullTransform()
+                tag_list = culler.RunTransform(tag_list)
+            tag_string = ','.join(tag_list)
             if(tag_string == ""): return False
             rsp = self._fapi.photos_search(api_key=self._GetOption('flickr_api_key'),tags=tag_string)
-            self._fapi.testFailure(rsp)        
+            self._fapi.testFailure(rsp)
             if(rsp.photos[0]['total'] == 0): return False
             rand_index = random.randint(0, min(int(rsp.photos[0]['perpage']), int(rsp.photos[0]['total'])))
             self._pic_info = rsp.photos[0].photo[rand_index]            
             return True 
         except:
             return False        
-
+#            raise
 #
 # Tag Services
 #
-
-class FwiktrTransformManager:
-    def __init__(self):
-        self._before = None
-        self._after = None
-        self._output = None
-        self._step = None
-        self._description = "Generic Transform Description. PLEASE CHANGE."
-        self._name = "Generic Transform Name. PLEASE CHANGE."
-
-    def SetStep(self, i):
-        self._step = i
-
-    def GetTransformXML(self):
-        transform_info = {"transform_before":self._before, "transform_after":self._after, "transform_output":self._output, "transform_step":self._step, "transform_name":self._name, "transform_description":self._description}
-        return transform_info_xml % transform_info
 
 class FwiktrTokenize(FwiktrTransformManager):
     def __init__(self):
@@ -219,8 +273,7 @@ class FwiktrTreeTagger(FwiktrTransformManager):
     def __init__(self):
         FwiktrTransformManager.__init__(self)
 
-    def GetTagList(self, text):
-        self._before = ""
+    def _Run(self, text):
         self._output = ""
         cmd = "echo \"%s\" | treetagger/cmd/tree-tagger-english > ./twitter_message_output.txt" % text
         os.system(cmd)
@@ -238,7 +291,6 @@ class FwiktrTreeTagger(FwiktrTransformManager):
         filtered_tags = filter(self._ComparisonFunction, tokens)
         final_tags = []
         [final_tags.append(i[0]) for i in filtered_tags]
-        self._after = OutputTagList(final_tags)
         return final_tags
    
     def _ComparisonFunction(self, list):
@@ -288,6 +340,7 @@ class Fwiktr:
         self._pic_rets = [FwiktrFlickrRetriever()]
         self._tag_rets = [FwiktrTokenize(), FwiktrTreeTaggerNounsOnly()]
     def CreateArt(self):
+        FwiktrTransformManager.ClearTransformInfo()
         xml_info = dict()
 
         #Pull post from source
@@ -304,10 +357,9 @@ class Fwiktr:
         #Pull tags from source
 
         tag_ret = self._tag_rets[1]
-        tag_ret.SetStep(1)
-        tag_list = tag_ret.GetTagList(post_text)
+        tag_list = tag_ret.RunTransform(post_text)
 
-        xml_info["transform_info_xml"] = tag_ret.GetTransformXML()
+        print tag_list
 
         #Season tag list
 
@@ -322,6 +374,8 @@ class Fwiktr:
         xml_dict = CombineDictionaries(xml_dict, post_ret.GetPostData())
         xml_dict = CombineDictionaries(xml_dict, pic_ret.GetPictureData())
 
+        xml_info["transform_info_xml"] = tag_ret.GetTransformXML()
+
         fwiktr_info = fwiktr_xml % xml_dict
         print fwiktr_info
 
@@ -330,8 +384,9 @@ class Fwiktr:
             parser=xmlval.XMLValidator()
             parser.feed(fwiktr_info)
         except:
+#            raise
             return
-
+        
         #Post data to web
 
         self._PostDataToWeb(fwiktr_info)
@@ -348,7 +403,7 @@ class Fwiktr:
 def main():
     f = Fwiktr()
     i = 0
-    while 1:
+    while  i < 10:
         try:
             f.CreateArt()
             i = i + 1

@@ -45,7 +45,7 @@
 
 <!ELEMENT fwiktr (language,art,post,picture,transforms)>
 
-<!ELEMENT tags (tag+)>
+<!ELEMENT tags (tag*)>
 <!ELEMENT tag (#PCDATA)>
 
 <!ELEMENT post (post_author_name, post_location, post_text, post_date, twitter?)>
