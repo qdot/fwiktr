@@ -17,6 +17,9 @@ $post_info = $doc->xpath("/post_info");
 // - Art THEN
 // - Transforms
 
+$post_sql[0] = "INSERT INTO fwiktr_xml (xml_text) VALUES (\"".mysql_real_escape_string($text)."\")";
+
+/*
 $post_sql[0] =
 "INSERT INTO fwiktr_post (
 post_source_index,
@@ -74,6 +77,7 @@ MAX(a.art_index),
 fwiktr_art AS a)";
 		array_push($post_sql, $transform_query);
 	}
+*/
 
 // Performing SQL query
 $result = mysql_query("BEGIN;") or die('Query failed: ' . mysql_error());
