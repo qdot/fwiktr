@@ -9,6 +9,13 @@ DROP TABLE IF EXISTS fwiktr_picture;
 DROP TABLE IF EXISTS fwiktr_art;
 DROP TABLE IF EXISTS fwiktr_transform_type;
 DROP TABLE IF EXISTS fwiktr_transform;
+DROP TABLE IF EXISTS fwiktr_xml;
+
+CREATE TABLE fwiktr_xml
+(
+	xml_index INT AUTO_INCREMENT PRIMARY KEY,
+	xml_text TEXT
+) ENGINE=InnoDB;
 
 CREATE TABLE fwiktr_post_source
 (

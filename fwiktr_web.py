@@ -9,46 +9,45 @@ import uuid
 import ConfigParser
 import pycurl
 import cgi
+from xml.parsers.xmlproc import xmlval
 from flickrapi import FlickrAPI
 from nltk import tag, corpora, tokenize
 
-fwiktr_block = '''<?xml version='1.0' standalone='yes'?>
-<fwiktr>
-    %(post_info_xml)s
-    %(art_info_xml)s
-    %(picture_info_xml)s
-    %(post_source_info_xml)s
-    %(picture_specific_info_xml)s
-    <transforms>
-      %(transform_info_xml)s
-    </transforms>
-</fwiktr>
-'''
 
-post_info_xml = '''
+fwiktr_xml = '''<?xml version="1.0"?>
+<!DOCTYPE fwiktr SYSTEM "fwiktr.dtd">
+<fwiktr>
+  <language>
+    <language_method>%(language_method)s</language_method>
+    <language_description>%(language_description)s</language_description>
+    <language_output>%(language_output)s</language_output>
+    <language_result>%(language_result)s</language_result>
+  </language>
+  <art>
+    %(art_tags)s
+  </art>
   <post>
-    <post_source>%(post_source)s</post_source>
+    <post_author_name>%(post_author_name)s</post_author_name>
+    <post_location>%(post_location)s</post_location>
     <post_text>%(post_text)s</post_text>
     <post_date>%(post_date)s</post_date>
+    %(post_info)s
   </post>
-'''
-
-picture_info_xml = '''
   <picture>
-	<picture_source>%(picture_source)s</picture_source>
+    <picture_title>%(picture_title)s</picture_title>
+    %(picture_info)s
   </picture>
-'''
-
-art_info_xml = '''
-  <art>
-    <art_tags>%(art_tags)s</art_tags>
-  </art>
+  <transforms>
+    %(transforms)s
+  </transforms>
+</fwiktr>
 '''
 
 transform_info_xml = '''
   <transform>
+    <transform_name>%(transform_name)s</transform_name>
+    <transform_description>%(transform_description)s</transform_description>
     <transform_step>%(transform_step)s</transform_step>
-    <transform_index>%(transform_index)s</transform_index>
     <transform_before>%(transform_before)s</transform_before>
     <transform_after>%(transform_after)s</transform_after>
     <transform_output>%(transform_output)s</transform_output>
@@ -56,26 +55,26 @@ transform_info_xml = '''
 '''
 
 twitter_info_xml = '''
-  <post_info>
+  <twitter>
     <twitter_post_id>%(twitter_post_id)s</twitter_post_id>
     <twitter_author_id>%(twitter_author_id)s</twitter_author_id>
-    <twitter_author_name>%(twitter_author_name)s</twitter_author_name>
-    <twitter_location>%(twitter_location)s</twitter_location>
-  </post_info>
+  </twitter>
 '''
 
 flickr_info_xml = '''
-  <picture_info>
+  <flickr>
     <flickr_farm>%(flickr_farm)s</flickr_farm>
     <flickr_server>%(flickr_server)s</flickr_server>
-    <flickr_photoid>%(flickr_photoid)s</flickr_photoid>
-    <flickr_ownerid>%(flickr_ownerid)s</flickr_ownerid>
-    <flickr_title>%(flickr_title)s</flickr_title>
+    <flickr_photo_id>%(flickr_photo_id)s</flickr_photo_id>
+    <flickr_owner_id>%(flickr_owner_id)s</flickr_owner_id>
     <flickr_secret>%(flickr_secret)s</flickr_secret>
-  </picture_info>
+  </flickr>
 '''
 
 gCurl = pycurl.Curl()
+
+def OutputTagList(tag_list):
+    return "<tags>" + ''.join( [("<tag>%s</tag>"%i) for i in tag_list] ) + "</tags>"
 
 class FwiktrServiceManager:
     def __init__(self):
@@ -103,6 +102,7 @@ class FwiktrPostRetriever(FwiktrServiceManager):
         FwiktrServiceManager.__init__(self)
         self._msg_list = []
         self._current_msg = None
+        self.name = ""
 
     def NextPost(self):
         #Iterate to the next post on the list. If we've exhausted the list, pull a new one        
@@ -116,7 +116,10 @@ class FwiktrPostRetriever(FwiktrServiceManager):
     def GetPostText(self):
         raise Exception, "ONLY TO BE CALLED FROM CHILD CLASSES"
 
-    def GetPostXML(self):
+    def GetPostData(self):
+        return {'post_author_name':self._current_msg.user.screen_name,'post_location':self._current_msg.user.location,'post_info':self._GetPostSpecificXML()}
+
+    def _GetPostSpecificXML(self):
         raise Exception, "ONLY TO BE CALLED FROM CHILD CLASSES"
 
     def _GetNewPosts(self):
@@ -126,6 +129,7 @@ class FwiktrPostRetriever(FwiktrServiceManager):
 class FwiktrTwitterRetriever(FwiktrPostRetriever):
     def __init__(self):
         FwiktrPostRetriever.__init__(self)
+        self.name = "Twitter"
 
     def _SetupService(self):
         self._tapi = twitter.Api()
@@ -139,11 +143,9 @@ class FwiktrTwitterRetriever(FwiktrPostRetriever):
     def GetPostText(self):
         return self._current_msg.text
 
-    def GetPostXML(self):
-        message = self._current_msg
-        self.twitter_info = {'twitter_post_id':message.id,'twitter_author_id':message.user.id,'twitter_author_name':message.user.screen_name,'twitter_location':message.user.location}
-        return twitter_info_xml % self.twitter_info
-        
+    def _GetPostSpecificXML(self):
+        return twitter_info_xml % {'twitter_post_id':self._current_msg.id,'twitter_author_id':self._current_msg.user.id}
+
 #
 # Picture Services
 #
@@ -152,13 +154,20 @@ class FwiktrFlickrRetriever(FwiktrServiceManager):
     def __init__(self):
         self._pic_info = []
         FwiktrServiceManager.__init__(self)
+        self.name = "Flickr"
 
     def _SetupService(self):
         self._fapi = FlickrAPI(self._GetOption('flickr_api_key'), self._GetOption('flickr_api_secret'))
 
     def GetPictureXML(self):
-        flickr_info = dict([('flickr_server', self._pic_info['server']), ('flickr_farm', self._pic_info['farm']), ('flickr_photoid', self._pic_info['id']), ('flickr_secret', self._pic_info['secret']), ('flickr_ownerid', self._pic_info['owner']), ('flickr_title', cgi.escape(self._pic_info['title']))])
-        return flickr_info_xml % flickr_info
+        return flickr_info_xml
+
+    def GetPictureData(self):
+        return {'picture_title':cgi.escape(self._pic_info['title']), 'picture_info':self._GetPictureSpecificData()}
+        
+
+    def _GetPictureSpecificData(self):
+        return flickr_info_xml % {'flickr_server':self._pic_info['server'], 'flickr_farm':self._pic_info['farm'], 'flickr_photo_id':self._pic_info['id'], 'flickr_secret':self._pic_info['secret'], 'flickr_owner_id':self._pic_info['owner']}
 
     def GetNewPicture(self, tag_list):
         try:
@@ -183,17 +192,20 @@ class FwiktrTransformManager:
         self._after = None
         self._output = None
         self._step = None
+        self._description = "Generic Transform Description. PLEASE CHANGE."
+        self._name = "Generic Transform Name. PLEASE CHANGE."
 
     def SetStep(self, i):
         self._step = i
 
     def GetTransformXML(self):
-        transform_info = {"transform_before":self._before, "transform_after":self._after, "transform_output":self._output, "transform_step":self._step, "transform_index":self._index}
+        transform_info = {"transform_before":self._before, "transform_after":self._after, "transform_output":self._output, "transform_step":self._step, "transform_name":self._name, "transform_description":self._description}
         return transform_info_xml % transform_info
 
 class FwiktrTokenize(FwiktrTransformManager):
     def __init__(self):
-        self._index = 1
+        self._description = "Tokenizer from Python NLP Toolkit. Removes all punctuation and whitespace, gives back tokenized word list with no filtering."
+        self._name = "NLPK Tokenizer"
 
     def GetTagList(self, text):
         self._before = text
@@ -208,7 +220,7 @@ class FwiktrTreeTagger(FwiktrTransformManager):
         FwiktrTransformManager.__init__(self)
 
     def GetTagList(self, text):
-        self._before = text
+        self._before = ""
         self._output = ""
         cmd = "echo \"%s\" | treetagger/cmd/tree-tagger-english > ./twitter_message_output.txt" % text
         os.system(cmd)
@@ -226,25 +238,29 @@ class FwiktrTreeTagger(FwiktrTransformManager):
         filtered_tags = filter(self._ComparisonFunction, tokens)
         final_tags = []
         [final_tags.append(i[0]) for i in filtered_tags]
-        self._after = final_tags
+        self._after = OutputTagList(final_tags)
         return final_tags
    
     def _ComparisonFunction(self, list):
         raise Exception, "COMPARISON MUST BE DEFINED IN CHILD CLASS"
 
-class FwiktrTreeTaggerNounsOnly(FwiktrTreeTagger):      
+class FwiktrTreeTaggerPOSPicker(FwiktrTreeTagger):
     def __init__(self):
-        self._index = 2
         FwiktrTreeTagger.__init__(self)
-
+        self._poslist = []
+    
     def _ComparisonFunction(self, list):
-        return self._IsTagNoun(list)
-
-    def _IsTagNoun(self, tag_tuple):
         #Start by culling everything that's not a noun
-        if tag_tuple[1] in ["NP", "NN", "NNS", "NPS"]:
+        if list[1] in self._poslist:
             return True
-        return False
+        return False      
+
+class FwiktrTreeTaggerNounsOnly(FwiktrTreeTaggerPOSPicker):      
+    def __init__(self):
+        FwiktrTreeTaggerPOSPicker.__init__(self)
+        self._poslist = ["NP", "NN", "NNS", "NPS"]
+        self._name = "TreeTagger - Nouns Only"
+        self._description = "Return only words having Parts of Speech type NN, NP, NNS, or NPS, as identified by TreeTagger (http://www.ims.uni-stuttgart.de/projekte/corplex/TreeTagger/)"
 
 #
 # Seasoning Services
@@ -261,6 +277,10 @@ class FwiktrTreeTaggerNounsOnly(FwiktrTreeTagger):
 #
 # Main Functionality
 #
+
+
+def CombineDictionaries(dict1, dict2):
+    return dict(dict1, **dict2)
 
 class Fwiktr:
     def __init__(self):
@@ -296,25 +316,28 @@ class Fwiktr:
         pic_ret = self._pic_rets[0]
         if pic_ret.GetNewPicture(tag_list) is False: return
 
+        #Build XML blob
+
+        xml_dict = {'language_method':"No Detection - English", 'language_result':"English", 'language_output':"", 'language_description':"No processing done, assumes english", 'art_tags':OutputTagList(tag_list), 'post_date':post_ret.GetPostDate(), 'post_text':cgi.escape(post_text), 'transforms':tag_ret.GetTransformXML()}
+        xml_dict = CombineDictionaries(xml_dict, post_ret.GetPostData())
+        xml_dict = CombineDictionaries(xml_dict, pic_ret.GetPictureData())
+
+        fwiktr_info = fwiktr_xml % xml_dict
+        print fwiktr_info
+
+        #check the validity of our XML before we ship it off
+        try:
+            parser=xmlval.XMLValidator()
+            parser.feed(fwiktr_info)
+        except:
+            return
+
         #Post data to web
-
-        picture_info_dict = {'picture_source':1}
-        xml_info["picture_info_xml"] = picture_info_xml % picture_info_dict
-        art_info_dict = {'art_tags':",".join(tag_list)}
-        xml_info["art_info_xml"] = art_info_xml % (art_info_dict)
-        post_info_dict = {'post_source':1, 'post_date':post_ret.GetPostDate(), 'post_text':cgi.escape(post_text)}
-        xml_info["post_info_xml"] = post_info_xml % (post_info_dict)
-
-        xml_info["post_source_info_xml"] = post_ret.GetPostXML()
-        xml_info["picture_specific_info_xml"] = pic_ret.GetPictureXML()
-
-        fwiktr_info = fwiktr_block % xml_info
 
         self._PostDataToWeb(fwiktr_info)
                 
     def _PostDataToWeb(self, info):
         try:
-            print info
             gCurl.setopt(pycurl.URL, 'http://www.30helensagree.com/fwiktr/fwiktr_post.php')
             gCurl.setopt(pycurl.POST, 1)
             gCurl.setopt(pycurl.POSTFIELDS, urllib.urlencode([("fwiktr_post", info)]))
@@ -325,13 +348,13 @@ class Fwiktr:
 def main():
     f = Fwiktr()
     i = 0
-    while i < 5:
+    while 1:
         try:
             f.CreateArt()
             i = i + 1
         except KeyboardInterrupt:
             return
-#    time.sleep(60)
+    time.sleep(60)
 
 if __name__ == "__main__":
     main()

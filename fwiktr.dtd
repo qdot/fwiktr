@@ -1,0 +1,88 @@
+<?xml version='1.0' ?>
+<!--
+<fwiktr>
+  <language>
+    <language_method>%(language_method)s</language_method>
+    <language_description>%(language_description)s</language_description>
+    <language_output>%(language_output)s</language_output>
+    <language_result>%(language_result)s</language_result>
+  </language>
+  <art>
+    <tags><tag>a</tag><tag>b</tag></tags>
+  </art>
+  <post>
+    <post_author_name>%(twitter_author_name)s</post_author_name>
+    <post_location>%(twitter_location)s</post_location>
+    <post_text>%(post_text)s</post_text>
+    <post_date>%(post_date)s</post_text>
+    <twitter>
+      <twitter_post_id>%(twitter_post_id)s</twitter_post_id>
+      <twitter_author_id>%(twitter_author_id)s</twitter_author_id>
+    </twitter>
+  </post>
+  <picture>
+    <picture_title>%(picture_title)s</picture_title>
+    <flickr>
+      <flickr_farm>%(flickr_farm)s</flickr_farm>
+      <flickr_server>%(flickr_server)s</flickr_server>
+      <flickr_photoid>%(flickr_photoid)s</flickr_photoid>
+      <flickr_ownerid>%(flickr_ownerid)s</flickr_ownerid>    
+      <flickr_secret>%(flickr_secret)s</flickr_secret>
+    </flickr>
+  </picture>
+  <transforms>
+    <transform>
+      <transform_name>%(transform_name)s</transform_name>
+      <transform_description>%(transform_description)s</transform_description>
+      <transform_step>%(transform_step)s</transform_step>
+      <transform_before>%(transform_before)s</transform_before>
+      <transform_after>%(transform_after)s</transform_after>
+      <transform_output>%(transform_output)s</transform_output>
+    </transform>
+  </transforms>
+</fwiktr>
+-->
+
+<!ELEMENT fwiktr (language,art,post,picture,transforms)>
+
+<!ELEMENT tags (tag+)>
+<!ELEMENT tag (#PCDATA)>
+
+<!ELEMENT post (post_author_name, post_location, post_text, post_date, twitter?)>
+<!ELEMENT post_author_name (#PCDATA)>
+<!ELEMENT post_location (#PCDATA)>
+<!ELEMENT post_text (#PCDATA)>
+<!ELEMENT post_date (#PCDATA)>
+
+<!ELEMENT language (language_method, language_description, language_output, language_result)>
+<!ELEMENT language_method (#PCDATA)>
+<!ELEMENT language_description (#PCDATA)>
+<!ELEMENT language_output (#PCDATA)>
+<!ELEMENT language_result (#PCDATA)>
+
+<!ELEMENT art (tags)>
+
+
+<!ELEMENT picture (picture_title, flickr?)>
+<!ELEMENT picture_title (#PCDATA)>
+
+<!ELEMENT twitter (twitter_post_id, twitter_author_id)>
+<!ELEMENT twitter_post_id (#PCDATA)>
+<!ELEMENT twitter_author_id (#PCDATA)>
+
+<!ELEMENT flickr (flickr_farm, flickr_server, flickr_photo_id, flickr_owner_id, flickr_secret)>
+
+<!ELEMENT flickr_farm (#PCDATA)>
+<!ELEMENT flickr_server (#PCDATA)>
+<!ELEMENT flickr_photo_id (#PCDATA)>
+<!ELEMENT flickr_owner_id (#PCDATA)>
+<!ELEMENT flickr_secret (#PCDATA)>
+
+<!ELEMENT transforms (transform+)>
+<!ELEMENT transform (transform_name, transform_description, transform_step, transform_before, transform_after, transform_output)>
+<!ELEMENT transform_step (#PCDATA)>
+<!ELEMENT transform_name (#PCDATA)>
+<!ELEMENT transform_description (#PCDATA)>
+<!ELEMENT transform_before (tags*)>
+<!ELEMENT transform_after (tags*)>
+<!ELEMENT transform_output (#PCDATA)>
