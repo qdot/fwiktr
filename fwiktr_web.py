@@ -74,6 +74,7 @@ flickr_info_xml = '''
 gCurl = pycurl.Curl()
 
 def OutputTagList(tag_list):
+    if not isinstance(tag_list, list): return ""
     return "<tags>" + ''.join( [("<tag>%s</tag>"%i) for i in tag_list] ) + "</tags>"
 
 class Callable:
@@ -122,13 +123,16 @@ class FwiktrTransformManager:
         FwiktrTransformManager.step = FwiktrTransformManager.step + 1
 
     def RunTransform(self, transform_data):
+        self._before = []
+        self._after = []
+        self._output = ""
         if isinstance(transform_data, list):
             self._before = transform_data
-        else:
-            self._before = []
-        self._after = self._Run(transform_data)
+        val = self._Run(transform_data)
+        if isinstance(val, list):
+            self._after = val
         self.AddTransformInfo()
-        return self._after
+        return val
 
     def _Run(self, transform_data):
         raise Exception, "ONLY TO BE CALLED FROM CHILD CLASSES"
@@ -154,6 +158,7 @@ class FwiktrPostRetriever(FwiktrServiceManager):
     def NextPost(self):
         #Iterate to the next post on the list. If we've exhausted the list, pull a new one        
         if len(self._msg_list) is 0:
+            time.sleep(30)
             self._GetNewPosts()
         self._current_msg = self._msg_list.pop()
 
@@ -200,21 +205,25 @@ class FwiktrFlickrFuckItSelectionTransform(FwiktrTransformManager):
     def __init__(self):
         self._description = "Uses the 'ANY' (Universal OR) search to seed the picture search, then selects a random picture."
         self._name = "Flickr 'Fuck It' Selector"
-    def _RunTransform(self, transform_data):
+        self._output = ""
+    def _Run(self, transform_data):
+        self._output = "Total Pictures Found: %(total)s\nPicture Index Used: %(picked)s" % transform_data
         return
 
 class FwiktrFlickrFullANDSelectionTransform(FwiktrTransformManager):
     def __init__(self):
-        self._description = "Uses the 'ALL' (Universal AND) search to seed the picture search, then selects a random picture if there are results. If not, falls back to 'Fuck It' search."
+        self._description = "Uses the 'ALL' (Universal AND) search to seed the picture search, then selects a random picture if there are results."
         self._name = "Flickr 'Full AND' Selector"
-    def _RunTransform(self, transform_data):
+        self._output = ""
+    def _Run(self, transform_data):
+        self._output = "Total Pictures Found: %(total)s\nPicture Index Used: %(picked)s" % transform_data
         return
         
 class FwiktrFlickrTagCullTransform(FwiktrTransformManager):
     def __init__(self):
         self._description = "Culls tag list down to 20 tags (maximum allowed by flickr API)"
         self._name = "Flickr Tag Cull Transformer"
-    def _RunTransform(self, transform_data):
+    def _Run(self, transform_data):
         return tag_list[0:19]
         
 class FwiktrFlickrRetriever(FwiktrServiceManager):
@@ -243,15 +252,24 @@ class FwiktrFlickrRetriever(FwiktrServiceManager):
                 tag_list = culler.RunTransform(tag_list)
             tag_string = ','.join(tag_list)
             if(tag_string == ""): return False
-            rsp = self._fapi.photos_search(api_key=self._GetOption('flickr_api_key'),tags=tag_string)
+            pic = FwiktrFlickrFullANDSelectionTransform()
+            rsp = self._fapi.photos_search(api_key=self._GetOption('flickr_api_key'),tags=tag_string,tag_mode='all')
             self._fapi.testFailure(rsp)
-            if(rsp.photos[0]['total'] == 0): return False
+            print rsp.photos[0]['total']
+            if(int(rsp.photos[0]['total']) == 0):
+                pic = FwiktrFlickrFuckItSelectionTransform()
+                rsp = self._fapi.photos_search(api_key=self._GetOption('flickr_api_key'),tags=tag_string,tag_mode='any')
+                print rsp.photos[0]['total']
+                self._fapi.testFailure(rsp)
+            if(int(rsp.photos[0]['total']) == 0): 
+                return False
             rand_index = random.randint(0, min(int(rsp.photos[0]['perpage']), int(rsp.photos[0]['total'])))
             self._pic_info = rsp.photos[0].photo[rand_index]            
+            pic.RunTransform({'total':rsp.photos[0]['total'],'picked':rand_index})
             return True 
         except:
-            return False        
-#            raise
+            return False
+
 #
 # Tag Services
 #
@@ -377,7 +395,7 @@ class Fwiktr:
         xml_info["transform_info_xml"] = tag_ret.GetTransformXML()
 
         fwiktr_info = fwiktr_xml % xml_dict
-        print fwiktr_info
+#        print fwiktr_info
 
         #check the validity of our XML before we ship it off
         try:
@@ -402,14 +420,11 @@ class Fwiktr:
 
 def main():
     f = Fwiktr()
-    i = 0
-    while  i < 10:
+    while  1:
         try:
             f.CreateArt()
-            i = i + 1
         except KeyboardInterrupt:
             return
-    time.sleep(60)
 
 if __name__ == "__main__":
     main()
