@@ -92,7 +92,12 @@ print ("
 <B>POST TAGS:</B>
 ");
 print(FormatTagNodes($doc->art->tags)."<BR>");
-print("<BR>I started with<BR>'{$doc->post->post_text}'<BR>For language, I used<BR>{$doc->language->language_method}<BR>which<BR>{$doc->language->language_description}<BR>to give me back<BR>{$doc->language->language_result}<BR>as the post langauge.<BR>To make the art, I ran<BR>");
+print("<BR>I started with<BR>'{$doc->post->post_text}'<BR>For language, I used<BR>{$doc->language->language_method}<BR>which<BR>{$doc->language->language_description}<BR>");
+if($doc->language->language_output != "")
+{
+	print("And after thinking about it, it said<BR><PRE>{$doc->language->language_output}</PRE><BR>");
+}
+print("to give me back<BR>{$doc->language->language_result}<BR>as the post langauge.<BR>To make the art, I ran<BR>");
 $i = 0;
 foreach($doc->transforms->children() as $transform)
 {
@@ -102,11 +107,14 @@ foreach($doc->transforms->children() as $transform)
 	{
 		print("And that gave me back<BR><PRE>{$transform->transform_output}</PRE><BR>");
 	}
-	if(count($transform->transform_after->tags->children()) != 0)
+	if($transform->transform_after)
 	{
-		print("I ended up with<BR>");
-		print(FormatTagNodes($transform->transform_after->tags));			
-		print("<BR>");
+		if(count($transform->transform_after->tags->children()) != 0)
+		{
+			print("I ended up with<BR>");
+			print(FormatTagNodes($transform->transform_after->tags));			
+			print("<BR>");
+		}
 	}
 	$i = 1;
 }
