@@ -35,8 +35,6 @@
       <transform_name>%(transform_name)s</transform_name>
       <transform_description>%(transform_description)s</transform_description>
       <transform_step>%(transform_step)s</transform_step>
-      <transform_before>%(transform_before)s</transform_before>
-      <transform_after>%(transform_after)s</transform_after>
       <transform_output>%(transform_output)s</transform_output>
     </transform>
   </transforms>
@@ -79,7 +77,7 @@
 <!ELEMENT flickr_secret (#PCDATA)>
 
 <!ELEMENT transforms (transform+)>
-<!ELEMENT transform (transform_name, transform_description, transform_step, transform_before, transform_after, transform_output)>
+<!ELEMENT transform (transform_name, transform_description, transform_step, transform_before*, transform_after*, transform_output)>
 <!ELEMENT transform_step (#PCDATA)>
 <!ELEMENT transform_name (#PCDATA)>
 <!ELEMENT transform_description (#PCDATA)>

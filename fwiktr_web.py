@@ -9,6 +9,7 @@ import uuid
 import ConfigParser
 import pycurl
 import cgi
+import re
 from xml.parsers.xmlproc import xmlval
 from flickrapi import FlickrAPI
 from nltk import tag, corpora, tokenize
@@ -48,8 +49,6 @@ transform_info_xml = '''
     <transform_name>%(transform_name)s</transform_name>
     <transform_description>%(transform_description)s</transform_description>
     <transform_step>%(transform_step)s</transform_step>
-    <transform_before>%(transform_before)s</transform_before>
-    <transform_after>%(transform_after)s</transform_after>
     <transform_output>%(transform_output)s</transform_output>
   </transform>
 '''
@@ -123,14 +122,14 @@ class FwiktrTransformManager:
         FwiktrTransformManager.step = FwiktrTransformManager.step + 1
 
     def RunTransform(self, transform_data):
-        self._before = []
-        self._after = []
         self._output = ""
-        if isinstance(transform_data, list):
-            self._before = transform_data
+#        self._before = []
+#        self._after = []
+#        if isinstance(transform_data, list):
+#            self._before = transform_data
         val = self._Run(transform_data)
-        if isinstance(val, list):
-            self._after = val
+#        if isinstance(val, list):
+#            self._after = val
         self.AddTransformInfo()
         return val
 
@@ -141,8 +140,36 @@ class FwiktrTransformManager:
         return FwiktrTransformManager.transform_xml
 
     def _BuildTransformXML(self):
-        transform_info = {"transform_before":OutputTagList(self._before), "transform_after":OutputTagList(self._after), "transform_output":self._output, "transform_step":FwiktrTransformManager.step, "transform_name":self._name, "transform_description":self._description}
+#        transform_info = {"transform_before":OutputTagList(self._before), "transform_after":OutputTagList(self._after), "transform_output":self._output, "transform_step":FwiktrTransformManager.step, "transform_name":self._name, "transform_description":self._description}
+        transform_info = {"transform_output":self._output, "transform_step":FwiktrTransformManager.step, "transform_name":self._name, "transform_description":self._description}
         return transform_info_xml % transform_info
+
+#
+# Language Services
+#
+
+class FwiktrLanguageService:
+    def __init__(self):
+        self._name = ""
+        self._description = ""
+
+    def GetLanguageData(self):
+        return {'language_method':self._name, 'language_description':self._description, 'language_output':self._output, 'language_result':self._result}
+
+class FwiktrPerlLinguaIdentify(FwiktrLanguageService):
+    def __init__(self):
+        FwiktrLanguageService.__init__(self)
+        self._name = "Lingua::Identify"
+        self._description = "Identifies language of text by using langof() function of Lingua::Identify perl module (http://search.cpan.org/~cog/Lingua-Identify-0.19/)"
+
+    def Identify(self, text):
+        self._output = ""
+        cmd = "echo \"%s\" | perl lingua_test.pl > ./lingua_output.txt" % text
+        os.system(cmd)
+        lang_file = open('lingua_output.txt', 'r')
+        self._output = lang_file.read()
+        lang_file.seek(0)
+        self._result = (lang_file.readlines()).pop().strip()
 
 #
 # Post Services
@@ -209,7 +236,7 @@ class FwiktrFlickrFuckItSelectionTransform(FwiktrTransformManager):
     def _Run(self, transform_data):
         self._output = "Total Pictures Found: %(total)s\nPicture Index Used: %(picked)s" % transform_data
         return
-
+ 
 class FwiktrFlickrFullANDSelectionTransform(FwiktrTransformManager):
     def __init__(self):
         self._description = "Uses the 'ALL' (Universal AND) search to seed the picture search, then selects a random picture if there are results."
@@ -329,7 +356,7 @@ class FwiktrTreeTaggerNounsOnly(FwiktrTreeTaggerPOSPicker):
     def __init__(self):
         FwiktrTreeTaggerPOSPicker.__init__(self)
         self._poslist = ["NP", "NN", "NNS", "NPS"]
-        self._name = "TreeTagger - Nouns Only"
+        self._name = "TreeTagger ENGLISH - Nouns Only"
         self._description = "Return only words having Parts of Speech type NN, NP, NNS, or NPS, as identified by TreeTagger (http://www.ims.uni-stuttgart.de/projekte/corplex/TreeTagger/)"
 
 #
@@ -357,6 +384,7 @@ class Fwiktr:
         self._post_rets = [FwiktrTwitterRetriever()]
         self._pic_rets = [FwiktrFlickrRetriever()]
         self._tag_rets = [FwiktrTokenize(), FwiktrTreeTaggerNounsOnly()]
+        self._lang_rets = [FwiktrPerlLinguaIdentify()]
     def CreateArt(self):
         FwiktrTransformManager.ClearTransformInfo()
         xml_info = dict()
@@ -370,7 +398,15 @@ class Fwiktr:
             print "Non-ASCII Message, skipping"
             return
 
+        print post_text
+
         #Identify source's language
+        lang_ret = self._lang_rets[0]
+        try:
+            lang_ret.Identify(post_text)
+        except:
+            print "Cannot identify language"
+            return
 
         #Pull tags from source
 
@@ -391,11 +427,11 @@ class Fwiktr:
         xml_dict = {'language_method':"No Detection - English", 'language_result':"English", 'language_output':"", 'language_description':"No processing done, assumes english", 'art_tags':OutputTagList(tag_list), 'post_date':post_ret.GetPostDate(), 'post_text':cgi.escape(post_text), 'transforms':tag_ret.GetTransformXML()}
         xml_dict = CombineDictionaries(xml_dict, post_ret.GetPostData())
         xml_dict = CombineDictionaries(xml_dict, pic_ret.GetPictureData())
-
+        xml_dict = CombineDictionaries(xml_dict, lang_ret.GetLanguageData())
         xml_info["transform_info_xml"] = tag_ret.GetTransformXML()
 
         fwiktr_info = fwiktr_xml % xml_dict
-#        print fwiktr_info
+        print fwiktr_info
 
         #check the validity of our XML before we ship it off
         try:
